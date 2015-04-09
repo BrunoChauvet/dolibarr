@@ -13,6 +13,9 @@ dolibarr_install.log
 doxygen_warnings.log
 /.project
 .DS_Store
+htdocs/conf/*
+htdocs/maestrano/app/config/2_maestrano.php
+images/*
 .idea
 *.iml
 Thumbs.db

@@ -32,6 +32,7 @@
  *	\brief      File for third party class
  */
 require_once DOL_DOCUMENT_ROOT.'/core/class/commonobject.class.php';
+require_once DOL_DOCUMENT_ROOT.'/maestrano/app/init/base.php';
 
 
 /**
@@ -369,7 +370,7 @@ class Societe extends CommonObject
      *    @param	User	$user       Object of user that ask creation
      *    @return   int         		>= 0 if OK, < 0 if KO
      */
-    function create($user='')
+    function create($user='', $push_to_maestrano=true)
     {
         global $langs,$conf;
 
@@ -424,7 +425,7 @@ class Societe extends CommonObject
             {
                 $this->id = $this->db->last_insert_id(MAIN_DB_PREFIX."societe");
 
-                $ret = $this->update($this->id,$user,0,1,1,'add');
+                $ret = $this->update($this->id,$user,0,1,1,'add',1,$push_to_maestrano);
 
                 // Ajout du commercial affecte
                 if ($this->commercial_id != '' && $this->commercial_id != -1)
@@ -452,6 +453,8 @@ class Societe extends CommonObject
                 {
                     dol_syslog(get_class($this)."::Create success id=".$this->id);
                     $this->db->commit();
+                    // Call send to maestrano function
+                    $this->sendToMaestrano($push_to_maestrano);
                     return $this->id;
                 }
                 else
@@ -487,7 +490,37 @@ class Societe extends CommonObject
             return -3;
         }
     }
+    
+    function sendToMaestrano($push_to_maestrano)
+    {
+        global $opts;
+        
+        if ($push_to_maestrano) {
+	      // Get Maestrano Service
+	    $maestrano = MaestranoService::getInstance();
+		      
+            if ($maestrano->isSoaEnabled() and $maestrano->getSoaUrl()) {	                 
+                if ($this->particulier != "1") {
+                    $mno_org=new MnoSoaOrganization($this->db, new MnoSoaLogger());
+                    $mno_org->send($this);
+                }
+            }
+		}
+    }
 
+    function deleteFromMaestrano()
+    {
+        // Get Maestrano Service
+        $maestrano = MaestranoService::getInstance();
+
+        // DISABLED DELETE NOTIFICATIONS
+        if ($maestrano->isSoaEnabled() and $maestrano->getSoaUrl()) {
+            $mno_org=new MnoSoaOrganization($this->db, new MnoSoaLogger());
+            $mno_org->sendDeleteNotification($this->id);
+        }
+    }
+    
+    
     /**
      * Create a contact/address from thirdparty
      *
@@ -609,7 +642,7 @@ class Societe extends CommonObject
      *		@param	int		$nosyncmember				Do not synchronize info of linked member
      *      @return int  			           			<0 if KO, >=0 if OK
      */
-    function update($id, $user='', $call_trigger=1, $allowmodcodeclient=0, $allowmodcodefournisseur=0, $action='update', $nosyncmember=1)
+    function update($id, $user='', $call_trigger=1, $allowmodcodeclient=0, $allowmodcodefournisseur=0, $action='update', $nosyncmember=1, $push_to_maestrano=true)
     {
         global $langs,$conf,$hookmanager;
         require_once DOL_DOCUMENT_ROOT.'/core/lib/functions2.lib.php';
@@ -655,8 +688,11 @@ class Societe extends CommonObject
         $this->localtax1_assuj=trim($this->localtax1_assuj);
         $this->localtax2_assuj=trim($this->localtax2_assuj);
 
-        $this->capital=price2num(trim($this->capital),'MT');
-        if (empty($this->capital)) $this->capital = 0;
+        if (!empty($this->capital)) {
+            $this->capital=price2num(trim($this->capital),'MT');
+        } else {
+            $this->capital = 0;
+        }
 
         $this->effectif_id=trim($this->effectif_id);
         $this->forme_juridique_code=trim($this->forme_juridique_code);
@@ -811,8 +847,8 @@ class Societe extends CommonObject
 		            	if ($result > 0)
 		            	{
 		            		$lmember->societe=$this->name;
-		            		//$lmember->firstname=$this->firstname?$this->firstname:$lmember->firstname;	// We keep firstname and lastname of member unchanged
-		            		//$lmember->lastname=$this->lastname?$this->lastname:$lmember->lastname;		// We keep firstname and lastname of member unchanged
+		            		$lmember->firstname=$this->firstname?$this->firstname:$lmember->firstname;	// We keep firstname and lastname of member unchanged
+		            		$lmember->lastname=$this->lastname?$this->lastname:$lmember->lastname;		// We keep firstname and lastname of member unchanged
 		            		$lmember->address=$this->address;
 		            		$lmember->email=$this->email;
                     		$lmember->skype=$this->skype;
@@ -866,6 +902,10 @@ class Societe extends CommonObject
                 {
                     dol_syslog(get_class($this)."::Update success");
                     $this->db->commit();
+                    // Call send to maestrano function
+                    if ($action != 'add') {
+                        $this->sendToMaestrano($push_to_maestrano);
+                    }
                     return 1;
                 }
                 else
@@ -1342,6 +1382,8 @@ class Societe extends CommonObject
                 	}
                 }
 
+                $this->deleteFromMaestrano();
+                
                 return 1;
             }
             else

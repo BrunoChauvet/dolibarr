@@ -699,7 +699,7 @@ class PrintIPP extends BasicIPP {
     // {{{ getPrinters();
     public function getPrinters() {
 
-        // placeholder for vendor extension operation (getAvailablePrinters for CUPS)
+        // placeholder for supplier extension operation (getAvailablePrinters for CUPS)
         $this->jobs = array_merge($this->jobs,array(''));
         $this->jobs_uri = array_merge($this->jobs_uri,array(''));
         $this->status = array_merge($this->status,array(''));    
@@ -1604,10 +1604,10 @@ class PrintIPP extends BasicIPP {
                 if ($value_parsed > 0x002B && $value_parsed <= 0x3FFF)
                     $value = sprintf('Unknown(IETF standards track operations reserved): 0x%x',$value_parsed);
                 elseif ($value_parsed >= 0x4000 && $value_parsed <= 0x8FFF) {
-                    if (method_exists($this,'_getEnumVendorExtensions')) {
-                        $value = $this->_getEnumVendorExtensions($value_parsed);
+                    if (method_exists($this,'_getEnumSupplierExtensions')) {
+                        $value = $this->_getEnumSupplierExtensions($value_parsed);
                     } else
-                        $value = sprintf('Unknown(Vendor extension for operations): 0x%x',$value_parsed);
+                        $value = sprintf('Unknown(Supplier extension for operations): 0x%x',$value_parsed);
                 } elseif ($value_parsed > 0x8FFF)
                     $value = sprintf('Unknown operation (should not exists): 0x%x',$value_parsed);
                 

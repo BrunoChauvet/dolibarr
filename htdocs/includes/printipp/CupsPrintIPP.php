@@ -90,7 +90,7 @@ class CupsPrintIPP extends ExtendedPrintIPP {
                                         .  $attributes[$i];
                                         
         $this->stringjob = chr(0x01) . chr(0x01) // IPP version 1.1 
-                         . chr(0x40). chr(0x01) // operation:  cups vendor extension: get defaults
+                         . chr(0x40). chr(0x01) // operation:  cups supplier extension: get defaults
                          . $this->meta->operation_id // request-id
                          . chr(0x01) // start operation-attributes | operation-attributes-tag
                          . $this->meta->charset
@@ -160,7 +160,7 @@ class CupsPrintIPP extends ExtendedPrintIPP {
         self::_setOperationId();
        
        $this->stringjob = chr(0x01) . chr(0x01) // IPP version 1.1 
-                         . chr(0x40). chr(0x08) // operation:  cups vendor extension: Accept-Jobs
+                         . chr(0x40). chr(0x08) // operation:  cups supplier extension: Accept-Jobs
                          . $this->meta->operation_id // request-id
                          . chr(0x01) // start operation-attributes | operation-attributes-tag
                          . $this->meta->charset
@@ -230,7 +230,7 @@ class CupsPrintIPP extends ExtendedPrintIPP {
                      . $printer_state_message;
 
        $this->stringjob = chr(0x01) . chr(0x01) // IPP version 1.1 
-                         . chr(0x40). chr(0x09) // operation:  cups vendor extension: Reject-Jobs
+                         . chr(0x40). chr(0x09) // operation:  cups supplier extension: Reject-Jobs
                          . $this->meta->operation_id // request-id
                          . chr(0x01) // start operation-attributes | operation-attributes-tag
                          . $this->meta->charset
@@ -325,7 +325,7 @@ class CupsPrintIPP extends ExtendedPrintIPP {
 
         
         $this->stringjob = chr(0x01) . chr(0x01) // IPP version 1.1 
-                         . chr(0x40). chr(0x02) // operation:  cups vendor extension: get printers
+                         . chr(0x40). chr(0x02) // operation:  cups supplier extension: get printers
                          . $this->meta->operation_id //           request-id
                          . chr(0x01) // start operation-attributes | operation-attributes-tag
                          . $this->meta->charset
@@ -530,8 +530,8 @@ class CupsPrintIPP extends ExtendedPrintIPP {
     }
     // }}}
     
-    // {{{ _getEnumVendorExtensions
-    protected function _getEnumVendorExtensions ($value_parsed) {
+    // {{{ _getEnumSupplierExtensions
+    protected function _getEnumSupplierExtensions ($value_parsed) {
         switch ($value_parsed) {
             case 0x4002:
                 $value = 'Get-Availables-Printers';

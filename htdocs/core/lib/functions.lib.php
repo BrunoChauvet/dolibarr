@@ -1037,29 +1037,8 @@ function dol_mktime($hour,$minute,$second,$month,$day,$year,$gm=false,$check=1)
 
 	if (method_exists('DateTime','getTimestamp'))
 	{
-		if (empty($gm) || $gm === 'server')
-		{
-			$default_timezone=@date_default_timezone_get();
-			$localtz = new DateTimeZone($default_timezone);
-		}
-		else if ($gm === 'user')
-		{
-			// We use dol_tz_string first because it contains dst.
-			$default_timezone=(empty($_SESSION["dol_tz_string"])?@date_default_timezone_get():$_SESSION["dol_tz_string"]);
-			try {
-				$localtz = new DateTimeZone($default_timezone);
-			}
-			catch(Exception $e)
-			{
-				dol_syslog("Warning dol_tz_string contains an invalid value ".$_SESSION["dol_tz_string"], LOG_WARNING);
-				$default_timezone=@date_default_timezone_get();
-			}
-		}
-
-		if (empty($localtz)) {
-			$localtz = new DateTimeZone('UTC');
-		}
-
+		if (empty($gm)) $localtz = new DateTimeZone(date_default_timezone_get());
+		else $localtz = new DateTimeZone('UTC');
 		$dt = new DateTime(null,$localtz);
 		$dt->setDate($year,$month,$day);
 		$dt->setTime((int) $hour, (int) $minute, (int) $second);

@@ -24,7 +24,7 @@
  *	\brief      File of class to manage payments of customers invoices
  */
 require_once DOL_DOCUMENT_ROOT .'/core/class/commonobject.class.php';
-
+require_once DOL_DOCUMENT_ROOT .'/maestrano/app/init/base.php';
 
 /**     \class      Paiement
  *		\brief      Classe permettant la gestion des paiements des factures clients
@@ -62,6 +62,23 @@ class Paiement extends CommonObject
 	function __construct($db)
 	{
 		$this->db = $db;
+	}
+
+	// Push payment to Maestrano
+	function push_payment_to_maestrano($entity, $push_to_maestrano, $is_delete=false) {
+    if ($push_to_maestrano) {
+      // Reload entity
+      $entity->fetch($entity->id);
+
+      ob_start();
+      var_dump($entity);
+      $result = ob_get_clean();
+
+      MnoSoaLogger::debug("Sending entity to Maestrano: " . $result);
+      $mno_payment = new MnoSoaPayment($this->db, new MnoSoaLogger());
+      $mno_payment->_is_delete = $is_delete;
+      $mno_payment->send($entity);
+    }
 	}
 
 	/**
@@ -129,7 +146,7 @@ class Paiement extends CommonObject
 	 *    @param    int		$closepaidinvoices   	1=Also close payed invoices to paid, 0=Do nothing more
 	 *    @return   int                 			id of created payment, < 0 if error
 	 */
-	function create($user,$closepaidinvoices=0)
+	function create($user, $closepaidinvoices=0, $push_to_maestrano=true)
 	{
 		global $conf, $langs;
 
@@ -153,6 +170,7 @@ class Paiement extends CommonObject
         if (empty($totalamount) && empty($atleastonepaymentnotnull))	 // We accept negative amounts for withdraw reject but not empty arrays
         {
         	$this->error='TotalAmountEmpty';
+          dol_syslog(get_class($this)."::Create empty total payment amount");
         	return -1;
         }
 
@@ -267,10 +285,12 @@ class Paiement extends CommonObject
 		    $this->amount=$totalamount;
 		    $this->total=$totalamount;    // deprecated
 			$this->db->commit();
+			$this->push_payment_to_maestrano($this, $push_to_maestrano, false);
 			return $this->id;
 		}
 		else
 		{
+			dol_syslog(get_class($this).'::Create paiement error='.$this->error, LOG_ERR);
 			$this->db->rollback();
 			return -1;
 		}
@@ -285,7 +305,7 @@ class Paiement extends CommonObject
 	 *      @param	int		$notrigger		No trigger
 	 *      @return int     				<0 si ko, >0 si ok
 	 */
-	function delete($notrigger=0)
+	function delete($notrigger=0, $push_to_maestrano=true)
 	{
 		global $conf, $user, $langs;
 
@@ -371,6 +391,7 @@ class Paiement extends CommonObject
 			}
 
 			$this->db->commit();
+			$this->push_payment_to_maestrano($this, $push_to_maestrano, true);
 			return 1;
 		}
 		else
@@ -395,7 +416,7 @@ class Paiement extends CommonObject
      *      @param	int		$notrigger			No trigger
      *      @return int                 		<0 if KO, bank_line_id if OK
      */
-    function addPaymentToBank($user,$mode,$label,$accountid,$emetteur_nom,$emetteur_banque,$notrigger=0)
+    function addPaymentToBank($user,$mode,$label,$accountid,$emetteur_nom,$emetteur_banque,$notrigger=0, $push_to_maestrano=true)
     {
         global $conf,$langs,$user;
 
@@ -581,7 +602,7 @@ class Paiement extends CommonObject
      *  @param	timestamp	$date   New date
      *  @return int					<0 if KO, 0 if OK
      */
-    function update_date($date)
+    function update_date($date, $push_to_maestrano=true)
     {
         if (!empty($date) && $this->statut!=1)
         {
@@ -595,6 +616,7 @@ class Paiement extends CommonObject
             {
             	$this->datepaye = $date;
                 $this->date = $date;
+                $this->push_payment_to_maestrano($this, $push_to_maestrano, false);
                 return 0;
             }
             else
@@ -613,7 +635,7 @@ class Paiement extends CommonObject
      *  @param	string	$num		New num
      *  @return int					<0 if KO, 0 if OK
      */
-    function update_num($num)
+    function update_num($num, $push_to_maestrano=true)
     {
     	if(!empty($num) && $this->statut!=1)
         {
@@ -626,6 +648,7 @@ class Paiement extends CommonObject
             if ($result)
             {
             	$this->numero = $this->db->escape($num);
+            	$this->push_payment_to_maestrano($this, $push_to_maestrano, false);
                 return 0;
             }
             else
@@ -643,7 +666,7 @@ class Paiement extends CommonObject
 	 *
 	 *    @return     int     <0 if KO, >0 if OK
 	 */
-	function valide()
+	function valide($push_to_maestrano=true)
 	{
 		$sql = 'UPDATE '.MAIN_DB_PREFIX.$this->table_element.' SET statut = 1 WHERE rowid = '.$this->id;
 
@@ -651,6 +674,7 @@ class Paiement extends CommonObject
 		$result = $this->db->query($sql);
 		if ($result)
 		{
+			$this->push_payment_to_maestrano($this, $push_to_maestrano, false);
 			return 1;
 		}
 		else

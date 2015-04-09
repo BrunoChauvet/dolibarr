@@ -29,6 +29,17 @@ if (! defined('NOREQUIRESOC'))   define('NOREQUIRESOC','1');
 
 require_once '../main.inc.php';
 
+// Hook:Maestrano
+// Logout from Dolibarr completely to avoid user
+// confusion
+$maestrano = MaestranoService::getInstance();
+if ($maestrano->isSsoEnabled()) {
+	session_unset();
+	session_destroy();
+  header("Location: " . $maestrano->getSsoLogoutUrl());
+	return;
+}
+
 // This destroy tag that say "Point of Sale session is on".
 unset($_SESSION['uid']);
 

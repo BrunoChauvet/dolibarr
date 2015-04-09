@@ -162,7 +162,7 @@ print '</td></tr>';
 
 $var=!$var;
 print '<tr '.$bc[$var].'><td>';
-print $langs->trans("VendorName").'</td><td>';
+print $langs->trans("SupplierName").'</td><td>';
 print '<input size="64" type="text" name="PAYBOX_CREDITOR" value="'.$conf->global->PAYBOX_CREDITOR.'">';
 print '<br>'.$langs->trans("Example").': '.$mysoc->name;
 print '</td></tr>';

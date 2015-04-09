@@ -198,6 +198,18 @@ if (ini_get('register_globals'))    // To solve bug in using $_SESSION
     }
 }
 
+// Hook:Maestrano
+// Load Maestrano
+// Require authentication straight away if intranet
+// mode enabled
+require DOL_DOCUMENT_ROOT . '/maestrano/app/init/base.php';
+$maestrano = MaestranoService::getInstance();
+if ($maestrano->isSsoIntranetEnabled()) {
+  if (!$maestrano->getSsoSession()->isValid()) {
+    header("Location: " . $maestrano->getSsoInitUrl());
+  }
+}
+
 // Init the 5 global objects
 // This include will set: $conf, $db, $langs, $user, $mysoc objects
 require_once 'master.inc.php';
@@ -358,6 +370,12 @@ if (! defined('NOLOGIN'))
     $test=true;
     if (! isset($_SESSION["dol_login"]))
     {
+			// Hook:Maestrano
+		    // Redirect to SSO login
+		    if ($maestrano->isSsoEnabled()) {
+		      header("Location: " . $maestrano->getSsoInitUrl());
+		    }
+
         // It is not already authenticated and it requests the login / password
         include_once DOL_DOCUMENT_ROOT.'/core/lib/security2.lib.php';
 
@@ -532,6 +550,14 @@ if (! defined('NOLOGIN'))
         // We are already into an authenticated session
         $login=$_SESSION["dol_login"];
         dol_syslog("This is an already logged session. _SESSION['dol_login']=".$login);
+
+			// Hook:Maestrano
+		    // Check Maestrano session is still valid
+		    if ($maestrano->isSsoEnabled()) {
+		      if (!$maestrano->getSsoSession()->isValid()) {
+		        header("Location: " . $maestrano->getSsoInitUrl());
+		      }
+		    }
 
         $resultFetchUser=$user->fetch('',$login);
         if ($resultFetchUser <= 0)
@@ -1397,7 +1423,16 @@ function top_menu($head, $title='', $target='', $disablejs=0, $disablehead=0, $a
 	    }
 	    $logintext='<div class="login"><a href="'.DOL_URL_ROOT.'/user/fiche.php?id='.$user->id.'"';
 	    $logintext.=$target?(' target="'.$target.'"'):'';
-	    $logintext.='>'.$user->login.'</a>';
+	    
+			// Hook:Maestrano
+			// Modify displayed name
+			$maestrano = MaestranoService::getInstance();
+			if ($maestrano->isSsoEnabled()) {
+				$logintext.='>'. $user->getFullName($langs) .'</a>';
+			} else {
+				$logintext.='>'.$user->login.'</a>';
+			}
+
 	    if ($user->societe_id) $logintext.=$companylink;
 	    $logintext.='</div>';
 	    $loginhtmltext.='<u>'.$langs->trans("User").'</u>';

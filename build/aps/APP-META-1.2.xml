@@ -6,11 +6,11 @@
 	<version>__VERSION__</version>
 	<release>__RELEASE__</release>
 	<homepage>http://www.dolibarr.org/</homepage>
-	<vendor>
+	<supplier>
 		<name>Dolibarr</name>
 		<homepage>http://www.dolibarr.org/</homepage>
 		<icon path="images/appicon_64.png" />
-	</vendor>
+	</supplier>
 	<packager>
         <name>Laurent Destailleur</name>
         <homepage>http://www.nltechno.com</homepage>

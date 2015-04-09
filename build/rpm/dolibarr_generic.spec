@@ -24,7 +24,7 @@ License: GPLv3+
 License: GPL-3.0+
 %endif
 #Packager: Laurent Destailleur (Eldy) <eldy@users.sourceforge.net>
-Vendor: Dolibarr dev team
+Supplier: Dolibarr dev team
 
 URL: http://www.dolibarr.org
 %if 0%{?fedora} || 0%{?rhel_version} || 0%{?centos_version}
@@ -155,7 +155,7 @@ cui hai bisogno ed essere facile da usare.
 %{__install} -m 644 build/rpm/dolibarr.desktop $RPM_BUILD_ROOT%{_datadir}/applications/%{name}.desktop
 %if 0%{?fedora} || 0%{?rhel_version} || 0%{?centos_version} || 0%{?mdkversion} || 0%{?suse_version}
 #Commented as it fails with error: /usr/bin/install: cannot stat build/rpm/dolibarr.desktop: No such file or directory
-#desktop-file-install --delete-original --dir=$RPM_BUILD_ROOT%{_datadir}/applications build/rpm/%{name}.desktop --vendor=""
+#desktop-file-install --delete-original --dir=$RPM_BUILD_ROOT%{_datadir}/applications build/rpm/%{name}.desktop --supplier=""
 %endif
 
 %{__mkdir} -p $RPM_BUILD_ROOT%{_datadir}/%{name}/build/rpm

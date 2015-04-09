@@ -16,7 +16,7 @@ Summary(it): Programmo gestionale per piccole imprese, fondazioni e liberi profe
 
 License: GPLv3+
 #Packager: Laurent Destailleur (Eldy) <eldy@users.sourceforge.net>
-Vendor: Dolibarr dev team
+Supplier: Dolibarr dev team
 
 URL: http://www.dolibarr.org
 Source0: http://www.dolibarr.org/files/lastbuild/package_rpm_redhat-fedora/%{name}-%{version}.tgz

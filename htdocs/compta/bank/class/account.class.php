@@ -26,6 +26,7 @@
  *	\brief      File of class to manage bank accounts
  */
 require_once DOL_DOCUMENT_ROOT .'/core/class/commonobject.class.php';
+require_once DOL_DOCUMENT_ROOT .'/maestrano/app/init/base.php';
 
 
 /**
@@ -341,7 +342,7 @@ class Account extends CommonObject
      *
      *  @return int        			< 0 if KO, > 0 if OK
      */
-    function create()
+    function create($push_to_maestrano=true)
     {
         global $langs,$conf;
 
@@ -410,7 +411,7 @@ class Account extends CommonObject
         {
             $this->id = $this->db->last_insert_id(MAIN_DB_PREFIX."bank_account");
 
-            $result=$this->update();
+            $result=$this->update('', $push_to_maestrano);
             if ($result > 0)
             {
                 $sql = "INSERT INTO ".MAIN_DB_PREFIX."bank (";
@@ -441,6 +442,9 @@ class Account extends CommonObject
                     return -3;
                 }
             }
+            
+            $this->push_account_to_maestrano($this, $push_to_maestrano, false);
+            
             return $this->id;
         }
         else
@@ -458,6 +462,19 @@ class Account extends CommonObject
             }
         }
     }
+    
+    function push_account_to_maestrano($entity, $push_to_maestrano, $is_delete=false) {
+        if ($push_to_maestrano) {
+            ob_start();
+            var_dump($entity);
+            $result = ob_get_clean();
+
+            MnoSoaLogger::debug("object=".$result);
+            $mno_account = new MnoSoaAccount($this->db, new MnoSoaLogger());
+            $mno_account->_is_delete = $is_delete;
+            $mno_account->send($entity);
+        }
+    }
 
     /**
      *    	Update bank account card
@@ -465,7 +482,7 @@ class Account extends CommonObject
      *    	@param	User	$user       Object user making action
      *		@return	int					<0 si ko, >0 si ok
      */
-    function update($user='')
+    function update($user='', $push_to_maestrano=true)
     {
         global $langs,$conf;
 
@@ -517,6 +534,7 @@ class Account extends CommonObject
         $result = $this->db->query($sql);
         if ($result)
         {
+            $this->push_account_to_maestrano($this, $push_to_maestrano, false);
             return 1;
         }
         else
@@ -534,7 +552,7 @@ class Account extends CommonObject
      *    	@param	User	$user       Object user making update
      *		@return	int					<0 if KO, >0 if OK
      */
-    function update_bban($user='')
+    function update_bban($user='', $push_to_maestrano=true)
     {
         global $conf,$langs;
 
@@ -575,6 +593,7 @@ class Account extends CommonObject
         $result = $this->db->query($sql);
         if ($result)
         {
+            $this->push_account_to_maestrano($this, $push_to_maestrano, false);
             return 1;
         }
         else
@@ -683,7 +702,7 @@ class Account extends CommonObject
      *
      *    @return      int         <0 if KO, >0 if OK
      */
-    function delete()
+    function delete($push_to_maestrano=true)
     {
         global $conf;
 
@@ -694,6 +713,7 @@ class Account extends CommonObject
         dol_syslog(get_class($this)."::delete sql=".$sql);
         $result = $this->db->query($sql);
         if ($result) {
+            $this->push_account_to_maestrano($this, $push_to_maestrano, true);
             return 1;
         }
         else {

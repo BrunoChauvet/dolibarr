@@ -210,7 +210,7 @@ class Product extends CommonObject
 	 *  @param	int		$notrigger		Disable triggers
 	 *	@return int			     		Id of product/service if OK, < 0 if KO
 	 */
-	function create($user,$notrigger=0)
+	function create($user,$notrigger=0,$push_to_maestrano=true)
 	{
 		global $conf, $langs;
 
@@ -324,8 +324,46 @@ class Product extends CommonObject
 			$result = $this->db->query($sql);
 			if ($result)
 			{
-				$obj = $this->db->fetch_object($result);
-				if ($obj->nb == 0)
+				// Produit non deja existant
+				$sql = "INSERT INTO ".MAIN_DB_PREFIX."product (";
+				$sql.= "datec";
+				$sql.= ", entity";
+				$sql.= ", ref";
+				$sql.= ", ref_ext";
+				$sql.= ", price_min";
+				$sql.= ", price_min_ttc";
+				$sql.= ", label";
+				$sql.= ", fk_user_author";
+				$sql.= ", fk_product_type";
+				$sql.= ", price";
+				$sql.= ", price_ttc";
+				$sql.= ", price_base_type";
+				$sql.= ", tobuy";
+				$sql.= ", tosell";
+				$sql.= ", canvas";
+				$sql.= ", finished";
+				$sql.= ") VALUES (";
+				$sql.= $this->db->idate($now);
+				$sql.= ", ".$conf->entity;
+				$sql.= ", '".$this->db->escape($this->ref)."'";
+				$sql.= ", ".(! empty($this->ref_ext)?"'".$this->db->escape($this->ref_ext)."'":"null");
+				$sql.= ", ".price2num($price_min_ht);
+				$sql.= ", ".price2num($price_min_ttc);
+				$sql.= ", ".(! empty($this->libelle)?"'".$this->db->escape($this->libelle)."'":"null");
+				$sql.= ", ".$user->id;
+				$sql.= ", ".$this->type;
+				$sql.= ", ".price2num($price_ht);
+				$sql.= ", ".price2num($price_ttc);
+				$sql.= ", '".$this->price_base_type."'";
+				$sql.= ", ".$this->status;
+				$sql.= ", ".$this->status_buy;
+				$sql.= ", '".$this->canvas."'";
+				$sql.= ", ".((empty($this->finished) || $this->finished < 0)?'null':$this->finished);
+				$sql.= ")";
+
+				dol_syslog(get_class($this)."::Create sql=".$sql);
+				$result = $this->db->query($sql);
+				if ( $result )
 				{
 					// Produit non deja existant
 					$sql = "INSERT INTO ".MAIN_DB_PREFIX."product (";
@@ -378,14 +416,7 @@ class Product extends CommonObject
 
 						if ($id > 0)
 						{
-							$this->id				= $id;
-							$this->price			= $price_ht;
-							$this->price_ttc		= $price_ttc;
-							$this->price_min		= $price_min_ht;
-							$this->price_min_ttc	= $price_min_ttc;
-
-							$result = $this->_log_price($user);
-							if ($result > 0)
+							if ($this->update($id, $user, true, 'add') > 0)
 							{
 								if ($this->update($id, $user, true, 'add') <= 0)
 								{
@@ -540,7 +571,7 @@ class Product extends CommonObject
 	 *	@param	string	$action		Current action for hookmanager ('add' or 'update')
 	 *	@return int         		1 if OK, -1 if ref already exists, -2 if other error
 	 */
-	function update($id, $user, $notrigger=false, $action='update')
+	function update($id, $user, $notrigger=false, $action='update', $push_to_maestrano=true)
 	{
 		global $langs, $conf, $hookmanager;
 
@@ -580,12 +611,26 @@ class Product extends CommonObject
 
         $this->db->begin();
 
-        // Check name is required and codes are ok or unique.
-        // If error, this->errors[] is filled
-        if ($action != 'add')
-        {
-        	$result = $this->verify();	// We don't check when update called during a create because verify was already done
-        }
+		$sql.= ",tosell = " . $this->status;
+		$sql.= ",tobuy = " . $this->status_buy;
+		$sql.= ",finished = " . ((empty($this->finished) || $this->finished < 0) ? "null" : $this->finished);
+		$sql.= ",weight = " . ($this->weight!='' ? "'".$this->weight."'" : 'null');
+		$sql.= ",weight_units = " . ($this->weight_units!='' ? "'".$this->weight_units."'": 'null');
+		$sql.= ",length = " . ($this->length!='' ? "'".$this->length."'" : 'null');
+		$sql.= ",length_units = " . ($this->length_units!='' ? "'".$this->length_units."'" : 'null');
+		$sql.= ",surface = " . ($this->surface!='' ? "'".$this->surface."'" : 'null');
+		$sql.= ",surface_units = " . ($this->surface_units!='' ? "'".$this->surface_units."'" : 'null');
+		$sql.= ",volume = " . ($this->volume!='' ? "'".$this->volume."'" : 'null');
+		$sql.= ",volume_units = " . ($this->volume_units!='' ? "'".$this->volume_units."'" : 'null');
+		$sql.= ",seuil_stock_alerte = " . ((isset($this->seuil_stock_alerte) && $this->seuil_stock_alerte != '') ? "'".$this->seuil_stock_alerte."'" : "null");
+		$sql.= ",description = '" . $this->db->escape($this->description) ."'";
+        $sql.= ",customcode = '" .        $this->db->escape($this->customcode) ."'";
+        $sql.= ",fk_country = " . ($this->country_id > 0 ? $this->country_id : 'null');
+        $sql.= ",note = '" .        $this->db->escape($this->note) ."'";
+		$sql.= ",duration = '" . $this->duration_value . $this->duration_unit ."'";
+		$sql.= ",accountancy_code_buy = '" . $this->accountancy_code_buy."'";
+		$sql.= ",accountancy_code_sell= '" . $this->accountancy_code_sell."'";
+		$sql.= " WHERE rowid = " . $id;
 
         if ($result >= 0)
         {
@@ -625,115 +670,68 @@ class Product extends CommonObject
 	        // For automatic creation
 	        if ($this->barcode == -1) $this->barcode = $this->get_barcode($this,$this->barcode_type_code);
 
-			$sql = "UPDATE ".MAIN_DB_PREFIX."product";
-			$sql.= " SET label = '" . $this->db->escape($this->libelle) ."'";
-			$sql.= ", ref = '" . $this->ref ."'";
-			$sql.= ", ref_ext = ".(! empty($this->ref_ext)?"'".$this->db->escape($this->ref_ext)."'":"null");
-			$sql.= ", tva_tx = " . $this->tva_tx;
-			$sql.= ", recuperableonly = " . $this->tva_npr;
-			$sql.= ", localtax1_tx = " . $this->localtax1_tx;
-			$sql.= ", localtax2_tx = " . $this->localtax2_tx;
-
-			$sql.= ", barcode = ". (empty($this->barcode)?"null":"'".$this->db->escape($this->barcode)."'");
-			$sql.= ", fk_barcode_type = ". (empty($this->barcode_type)?"null":$this->db->escape($this->barcode_type));
-
-			$sql.= ", tosell = " . $this->status;
-			$sql.= ", tobuy = " . $this->status_buy;
-			$sql.= ", tobatch = " . ((empty($this->status_batch) || $this->status_batch < 0) ? '0' : $this->status_batch);
-			$sql.= ", finished = " . ((! isset($this->finished) || $this->finished < 0) ? "null" : (int) $this->finished);
-			$sql.= ", weight = " . ($this->weight!='' ? "'".$this->weight."'" : 'null');
-			$sql.= ", weight_units = " . ($this->weight_units!='' ? "'".$this->weight_units."'": 'null');
-			$sql.= ", length = " . ($this->length!='' ? "'".$this->length."'" : 'null');
-			$sql.= ", length_units = " . ($this->length_units!='' ? "'".$this->length_units."'" : 'null');
-			$sql.= ", surface = " . ($this->surface!='' ? "'".$this->surface."'" : 'null');
-			$sql.= ", surface_units = " . ($this->surface_units!='' ? "'".$this->surface_units."'" : 'null');
-			$sql.= ", volume = " . ($this->volume!='' ? "'".$this->volume."'" : 'null');
-			$sql.= ", volume_units = " . ($this->volume_units!='' ? "'".$this->volume_units."'" : 'null');
-			$sql.= ", seuil_stock_alerte = " . ((isset($this->seuil_stock_alerte) && $this->seuil_stock_alerte != '') ? "'".$this->seuil_stock_alerte."'" : "null");
-			$sql.= ", description = '" . $this->db->escape($this->description) ."'";
-			$sql.= ", url = " . ($this->url?"'".$this->db->escape($this->url)."'":'null');
-			$sql.= ", customcode = '" .        $this->db->escape($this->customcode) ."'";
-	        $sql.= ", fk_country = " . ($this->country_id > 0 ? $this->country_id : 'null');
-	        $sql.= ", note = ".(isset($this->note) ? "'" .$this->db->escape($this->note)."'" : 'null');
-			$sql.= ", duration = '" . $this->duration_value . $this->duration_unit ."'";
-			$sql.= ", accountancy_code_buy = '" . $this->accountancy_code_buy."'";
-			$sql.= ", accountancy_code_sell= '" . $this->accountancy_code_sell."'";
-			$sql.= ", desiredstock = " . ((isset($this->desiredstock) && $this->desiredstock != '') ? $this->desiredstock : "null");
-			$sql.= " WHERE rowid = " . $id;
-
-			dol_syslog(get_class($this)."update sql=".$sql);
-			$resql=$this->db->query($sql);
-			if ($resql)
+			// Multilangs
+			if (! empty($conf->global->MAIN_MULTILANGS))
 			{
-				$this->id = $id;
-
-				// Multilangs
-				if (! empty($conf->global->MAIN_MULTILANGS))
+				if ( $this->setMultiLangs() < 0)
 				{
-					if ( $this->setMultiLangs() < 0)
+					$this->error=$langs->trans("Error")." : ".$this->db->error()." - ".$sql;
+					return -2;
+				}
+			}
+
+			// Actions on extra fields (by external module or standard code)
+			$hookmanager->initHooks(array('productdao'));
+			$parameters=array('id'=>$this->id);
+			$reshook=$hookmanager->executeHooks('insertExtraFields',$parameters,$this,$action);    // Note that $action and $object may have been modified by some hooks
+			if (empty($reshook))
+			{
+				if (empty($conf->global->MAIN_EXTRAFIELDS_DISABLED)) // For avoid conflicts if trigger used
+				{
+					$result=$this->insertExtraFields();
+					if ($result < 0)
 					{
-						$this->error=$langs->trans("Error")." : ".$this->db->error()." - ".$sql;
-						return -2;
+						$error++;
 					}
 				}
+			}
+			else if ($reshook < 0) $error++;
 
-				// Actions on extra fields (by external module or standard code)
-				$hookmanager->initHooks(array('productdao'));
-				$parameters=array('id'=>$this->id);
-				$reshook=$hookmanager->executeHooks('insertExtraFields',$parameters,$this,$action);    // Note that $action and $object may have been modified by some hooks
-				if (empty($reshook))
+			if (! $error && ! $notrigger)
+			{
+				// Appel des triggers
+				include_once DOL_DOCUMENT_ROOT . '/core/class/interfaces.class.php';
+				$interface=new Interfaces($this->db);
+				$result=$interface->run_triggers('PRODUCT_MODIFY',$this,$user,$langs,$conf);
+				if ($result < 0) { $error++; $this->errors=$interface->errors; }
+				// Fin appel triggers
+			}
+
+			if (! $error && (is_object($this->oldcopy) && $this->oldcopy->ref != $this->ref))
+			{
+				// We remove directory
+				if ($conf->product->dir_output)
 				{
-					if (empty($conf->global->MAIN_EXTRAFIELDS_DISABLED)) // For avoid conflicts if trigger used
+					$olddir = $conf->product->dir_output . "/" . dol_sanitizeFileName($this->oldcopy->ref);
+					$newdir = $conf->product->dir_output . "/" . dol_sanitizeFileName($this->ref);
+					if (file_exists($olddir))
 					{
-						$result=$this->insertExtraFields();
-						if ($result < 0)
+						include_once DOL_DOCUMENT_ROOT . '/core/lib/files.lib.php';
+						$res=@dol_move($olddir, $newdir);
+						if (! $res)
 						{
+							$this->error='ErrorFailToMoveDir';
 							$error++;
 						}
 					}
 				}
-				else if ($reshook < 0) $error++;
+			}
 
-				if (! $error && ! $notrigger)
-				{
-					// Appel des triggers
-					include_once DOL_DOCUMENT_ROOT . '/core/class/interfaces.class.php';
-					$interface=new Interfaces($this->db);
-					$result=$interface->run_triggers('PRODUCT_MODIFY',$this,$user,$langs,$conf);
-					if ($result < 0) { $error++; $this->errors=$interface->errors; }
-					// Fin appel triggers
-				}
-
-				if (! $error && (is_object($this->oldcopy) && $this->oldcopy->ref != $this->ref))
-				{
-					// We remove directory
-					if ($conf->product->dir_output)
-					{
-						$olddir = $conf->product->dir_output . "/" . dol_sanitizeFileName($this->oldcopy->ref);
-						$newdir = $conf->product->dir_output . "/" . dol_sanitizeFileName($this->ref);
-						if (file_exists($olddir))
-						{
-							include_once DOL_DOCUMENT_ROOT . '/core/lib/files.lib.php';
-							$res=dol_move($olddir, $newdir);
-							if (! $res)
-							{
-								$this->error='ErrorFailToMoveDir';
-								$error++;
-							}
-						}
-					}
-				}
-
-				if (! $error)
-				{
-					$this->db->commit();
-					return 1;
-				}
-				else
-				{
-					$this->db->rollback();
-					return -$error;
-				}
+			if (! $error)
+			{
+				$this->db->commit();
+                $this->push_product_to_maestrano($this, $push_to_maestrano, false);
+				return 1;
 			}
 			else
 			{
@@ -765,7 +763,7 @@ class Product extends CommonObject
 	 *	@param      int		$id         Product id (usage of this is deprecated, delete should be called without parameters on a fetched object)
 	 * 	@return		int					< 0 if KO, 0 = Not possible, > 0 if OK
 	 */
-	function delete($id=0)
+	function delete($id, $push_to_maestrano=true)
 	{
 		global $conf,$user,$langs;
 		require_once DOL_DOCUMENT_ROOT . '/core/lib/files.lib.php';
@@ -811,16 +809,9 @@ class Product extends CommonObject
 			{
 				if (! $error)
 				{
-					$sql = "DELETE FROM ".MAIN_DB_PREFIX.$table;
-					$sql.= " WHERE fk_product = ".$id;
-					dol_syslog(get_class($this).'::delete sql='.$sql, LOG_DEBUG);
-					$result = $this->db->query($sql);
-					if (! $result)
-					{
-						$error++;
-						$this->errors[] = $this->db->lasterror();
-						dol_syslog(get_class($this).'::delete error '.$this->error, LOG_ERR);
-					}
+					$this->db->commit();
+                    $this->push_product_to_maestrano($this, $push_to_maestrano, true);
+					return 1;
 				}
 			}
 
@@ -1253,7 +1244,7 @@ class Product extends CommonObject
 	 *  @param     	int		$newpsq         1 if it has price by quantity
 	 * 	@return		int						<0 if KO, >0 if OK
 	 */
-	function updatePrice($newprice, $newpricebase, $user, $newvat='',$newminprice='', $level=0, $newnpr=0, $newpsq=0)
+	function updatePrice($id, $newprice, $newpricebase, $user, $newvat='',$newminprice='', $level=0, $newnpr=0, $newpsq=0, $push_to_maestrano=true)
 	{
 		global $conf,$langs;
 
@@ -1372,6 +1363,8 @@ class Product extends CommonObject
 				dol_print_error($this->db);
 			}
 		}
+
+        $this->push_product_to_maestrano($this, $push_to_maestrano, false);
 
 		return 1;
 	}
@@ -3568,4 +3561,13 @@ class Product extends CommonObject
 			}
 		}
 	}
+
+    function push_product_to_maestrano($entity, $push_to_maestrano, $is_delete=false) {
+      if ($push_to_maestrano) {
+          $mno_item = new MnoSoaItem($this->db);
+          $mno_item->_local_element_type = ($entity->type==0) ? "PRODUCT" : (($entity->type==1) ? "SERVICE" : null);
+          $mno_item->_is_delete = $is_delete;
+          $mno_item->send($entity);
+      }
+  }
 }
